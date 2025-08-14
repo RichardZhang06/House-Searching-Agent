@@ -1,17 +1,18 @@
-from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 
 app = FastAPI()
 
-# Serve static files from wwwroot
-app.mount("/", StaticFiles(directory="wwwroot", html=True), name="static")
-
-# Optional: simple login route
-@app.post("/login")
-async def login(username: str = Form(...), password: str = Form(...)):
-    # Dummy check
-    if username == "admin" and password == "password":
-        return {"message": f"Welcome, {username}!"}
-    return {"message": "Invalid credentials"}
+@app.get("/")
+def read_root():
+    html_content = """
+    <html>
+        <head>
+            <title>Hello Azure</title>
+        </head>
+        <body>
+            <h1>Hello from FastAPI on Azure!</h1>
+        </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
