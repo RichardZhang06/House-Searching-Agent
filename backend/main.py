@@ -1,18 +1,25 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# WebSocket endpoint
-@app.websocket("/ws")
-async def websocket_endpoint(ws: WebSocket):
-    await ws.accept()
-    try:
-        while True:
-            data = await ws.receive_text()
-            reply = f"You said '{data}'"
-            await ws.send_text(reply)
-    except WebSocketDisconnect:
-        print("Client disconnected")
+# Allow requests from frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
+class Message(BaseModel):
+    text: str
+
+@app.post("/chat")
+def chat(msg: Message):
+    return {"reply": f"You said '{msg.text}'"}
+
+# Serve React frontend
 app.mount("/", StaticFiles(directory="frontend/build", html=True), name="frontend")

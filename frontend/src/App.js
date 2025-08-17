@@ -1,39 +1,28 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 
 function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const ws = useRef(null);
 
-  useEffect(() => {
-    // const wsUrl =
-    //   process.env.NODE_ENV === "production"
-    //     ? `wss://${window.location.host}/ws`
-    //     : "ws://localhost:8000/ws";
-    const wsUrl = `wss://${window.location.host}/ws`;
-
-    ws.current = new WebSocket(wsUrl);
-
-    ws.current.onmessage = (event) => {
-      setMessages((prev) => [...prev, { sender: "bot", text: event.data }]);
-    };
-
-    ws.current.onclose = () => console.log("WebSocket closed");
-
-    return () => ws.current.close();
-  }, []);
-
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!input.trim()) return;
 
     setMessages((prev) => [...prev, { sender: "user", text: input }]);
-    ws.current.send(input);
+
+    const response = await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: input }),
+    });
+
+    const data = await response.json();
+    setMessages((prev) => [...prev, { sender: "bot", text: data.reply }]);
     setInput("");
   };
 
   return (
     <div style={{ maxWidth: 600, margin: "auto", padding: 20 }}>
-      <h1>WebSocket Chatbot</h1>
+      <h1>Chatbot</h1>
       <div
         style={{
           border: "1px solid #ccc",
