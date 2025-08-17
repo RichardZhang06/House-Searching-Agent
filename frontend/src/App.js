@@ -1,54 +1,40 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import Home from "./pages/Home";
+import Login from "./pages/Login";
+import Chatbot from "./pages/Chatbot";
 
 function App() {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const sendMessage = async () => {
-    if (!input.trim()) return;
+  // Check session on app load
+  useEffect(() => {
+    fetch("/auth/session")
+      .then((res) => res.json())
+      .then((data) => {
+        setUser(data.user);
+        setLoading(false);
+      })
+      .catch(() => {
+        setUser(null);
+        setLoading(false);
+      });
+  }, []);
 
-    setMessages((prev) => [...prev, { sender: "user", text: input }]);
-
-    const response = await fetch("/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: input }),
-    });
-
-    const data = await response.json();
-    setMessages((prev) => [...prev, { sender: "bot", text: data.reply }]);
-    setInput("");
-  };
+  if (loading) return <div>Loading...</div>;
 
   return (
-    <div style={{ maxWidth: 600, margin: "auto", padding: 20 }}>
-      <h1>Chatbot</h1>
-      <div
-        style={{
-          border: "1px solid #ccc",
-          borderRadius: "10px",
-          padding: 10,
-          height: 400,
-          overflowY: "auto",
-          marginBottom: 10,
-        }}
-      >
-        {messages.map((msg, idx) => (
-          <div key={idx} style={{ textAlign: msg.sender === "user" ? "right" : "left" }}>
-            <b>{msg.sender === "user" ? "You" : "Bot"}:</b> {msg.text}
-          </div>
-        ))}
-      </div>
-      <input
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        style={{ width: "80%", padding: 10 }}
-        onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-      />
-      <button onClick={sendMessage} style={{ width: "18%", padding: 10 }}>
-        Send
-      </button>
-    </div>
+    <Router>
+      <Routes>
+        <Route path="/" element={<Home user={user} />} />
+        <Route path="/login" element={<Login />} />
+        <Route
+          path="/chat"
+          element={user ? <Chatbot user={user} /> : <Navigate to="/login" replace />}
+        />
+      </Routes>
+    </Router>
   );
 }
 
