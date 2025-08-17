@@ -1,40 +1,42 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
+  const ws = useRef(null);
 
-  const sendMessage = async () => {
+  useEffect(() => {
+    // Connect to FastAPI WebSocket
+    ws.current = new WebSocket("ws://localhost:8000/ws");
+
+    ws.current.onmessage = (event) => {
+      setMessages((prev) => [...prev, { sender: "bot", text: event.data }]);
+    };
+
+    ws.current.onclose = () => console.log("WebSocket closed");
+
+    return () => ws.current.close();
+  }, []);
+
+  const sendMessage = () => {
     if (!input.trim()) return;
 
-    // Add user message to chat
-    const newMessages = [...messages, { sender: "user", text: input }];
-    setMessages(newMessages);
-
-    // Send to backend
-    const res = await fetch("http://localhost:8000/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: input }),
-    });
-    const data = await res.json();
-
-    // Add bot reply
-    setMessages([...newMessages, { sender: "bot", text: data.reply }]);
+    setMessages((prev) => [...prev, { sender: "user", text: input }]);
+    ws.current.send(input);
     setInput("");
   };
 
   return (
     <div style={{ maxWidth: 600, margin: "auto", padding: 20 }}>
-      <h1>Chatbot</h1>
+      <h1>WebSocket Chatbot</h1>
       <div
         style={{
           border: "1px solid #ccc",
           borderRadius: "10px",
-          padding: "10px",
-          height: "400px",
+          padding: 10,
+          height: 400,
           overflowY: "auto",
-          marginBottom: "10px"
+          marginBottom: 10,
         }}
       >
         {messages.map((msg, idx) => (
@@ -46,10 +48,10 @@ function App() {
       <input
         value={input}
         onChange={(e) => setInput(e.target.value)}
-        style={{ width: "80%", padding: "10px" }}
+        style={{ width: "80%", padding: 10 }}
         onKeyDown={(e) => e.key === "Enter" && sendMessage()}
       />
-      <button onClick={sendMessage} style={{ width: "18%", padding: "10px" }}>
+      <button onClick={sendMessage} style={{ width: "18%", padding: 10 }}>
         Send
       </button>
     </div>
