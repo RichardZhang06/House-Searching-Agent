@@ -10,7 +10,7 @@ function App() {
     //   process.env.NODE_ENV === "production"
     //     ? `wss://${window.location.host}/ws`
     //     : "ws://localhost:8000/ws";
-    const wsUrl = 'wss://${window.location.host}/ws';
+    const wsUrl = `wss://${window.location.host}/ws`;
 
     ws.current = new WebSocket(wsUrl);
 
