@@ -6,8 +6,13 @@ function App() {
   const ws = useRef(null);
 
   useEffect(() => {
-    // Connect to FastAPI WebSocket
-    ws.current = new WebSocket("ws://localhost:8000/ws");
+    // const wsUrl =
+    //   process.env.NODE_ENV === "production"
+    //     ? `wss://${window.location.host}/ws`
+    //     : "ws://localhost:8000/ws";
+    const wsUrl = 'wss://${window.location.host}/ws';
+
+    ws.current = new WebSocket(wsUrl);
 
     ws.current.onmessage = (event) => {
       setMessages((prev) => [...prev, { sender: "bot", text: event.data }]);
