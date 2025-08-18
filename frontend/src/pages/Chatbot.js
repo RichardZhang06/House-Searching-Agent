@@ -1,41 +1,34 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
 
 function Chatbot({ user }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const ws = useRef(null);
 
-  useEffect(() => {
-    // Use ws if you want real-time
-    const wsUrl = `ws://${window.location.host}/ws`;
-    ws.current = new WebSocket(wsUrl);
-
-    ws.current.onmessage = (event) => {
-      setMessages((prev) => [...prev, { sender: "bot", text: event.data }]);
-    };
-
-    ws.current.onclose = () => console.log("WebSocket closed");
-    return () => ws.current.close();
-  }, []);
-
-  const sendMessage = async () => {
+    const sendMessage = async () => {
     if (!input.trim()) return;
 
     setMessages((prev) => [...prev, { sender: "user", text: input }]);
 
-    // Fallback POST for production or if WebSocket fails
     const formData = new FormData();
     formData.append("message", input);
 
-    const response = await fetch("/chat", {
-      method: "POST",
-      body: formData,
-    });
-    const data = await response.json();
-    setMessages((prev) => [...prev, { sender: "bot", text: data.reply }]);
+    try {
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/chat`, {
+        method: "POST",
+        body: formData,
+        });
+
+        if (!response.ok) throw new Error("Server error");
+
+        const data = await response.json();
+        setMessages((prev) => [...prev, { sender: "bot", text: data.reply }]);
+    } catch (err) {
+        console.error(err);
+        setMessages((prev) => [...prev, { sender: "bot", text: "Error: could not reach server." }]);
+    }
 
     setInput("");
-  };
+    };
 
   return (
     <div style={{ maxWidth: 600, margin: "auto", padding: 20 }}>
@@ -51,20 +44,28 @@ function Chatbot({ user }) {
         }}
       >
         {messages.map((msg, idx) => (
-          <div key={idx} style={{ textAlign: msg.sender === "user" ? "right" : "left" }}>
+          <div
+            key={idx}
+            style={{
+              textAlign: msg.sender === "user" ? "right" : "left",
+              margin: "5px 0",
+            }}
+          >
             <b>{msg.sender === "user" ? "You" : "Bot"}:</b> {msg.text}
           </div>
         ))}
       </div>
-      <input
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        style={{ width: "80%", padding: 10 }}
-        onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-      />
-      <button onClick={sendMessage} style={{ width: "18%", padding: 10 }}>
-        Send
-      </button>
+      <div style={{ display: "flex", gap: 10 }}>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          style={{ flexGrow: 1, padding: 10 }}
+          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+        />
+        <button onClick={sendMessage} style={{ padding: "10px 20px" }}>
+          Send
+        </button>
+      </div>
     </div>
   );
 }

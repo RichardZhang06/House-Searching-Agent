@@ -4,3 +4,4 @@ gunicorn
 itsdangerous
 authlib
 httpx
+python-multipart
