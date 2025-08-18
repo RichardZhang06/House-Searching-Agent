@@ -18,7 +18,8 @@ function Chatbot({ user }) {
     setLoading(true);
 
     try {
-      const response = await fetch("/chat", {
+      const AZURE_API_URL = "https://housesearchingagent-g6h6b4euaxbhfudr.azurewebsites.net";
+      const response = await fetch(`${AZURE_API_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: input }),
