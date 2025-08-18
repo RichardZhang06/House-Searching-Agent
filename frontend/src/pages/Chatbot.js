@@ -13,7 +13,7 @@ function Chatbot({ user }) {
     formData.append("message", input);
 
     try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/chat`, {
+        const response = await fetch("/chat", {
         method: "POST",
         body: formData,
         });
