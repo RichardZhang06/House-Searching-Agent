@@ -6,3 +6,5 @@ authlib
 httpx
 python-multipart
 openai
+sqlalchemy
+psycopg2-binary

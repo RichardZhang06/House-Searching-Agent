@@ -6,20 +6,44 @@ function Chatbot({ user }) {
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // Scroll to latest message
+  const AZURE_URL = "https://housesearchingagent-g6h6b4euaxbhfudr.canadacentral-01.azurewebsites.net";
+
+  // Scroll to bottom on new messages or loading changes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
+  // Fetch chat history on mount
+  useEffect(() => {
+    const fetchChats = async () => {
+      try {
+        const response = await fetch(`${AZURE_URL}/chats`);
+        if (!response.ok) throw new Error("Failed to fetch chats");
+        const data = await response.json();
+
+        // Chronological order (oldest first)
+        const history = data.flatMap((chat) => [
+          { sender: "user", text: chat.message, time: chat.time },
+          { sender: "bot", text: chat.reply, time: chat.time },
+        ]);
+
+        setMessages(history);
+      } catch (err) {
+        console.error("Error fetching chat history:", err);
+      }
+    };
+    fetchChats();
+  }, []);
+
   const sendMessage = async () => {
     if (!input.trim()) return;
 
-    setMessages((prev) => [...prev, { sender: "user", text: input }]);
+    const now = new Date().toISOString();
+    setMessages((prev) => [...prev, { sender: "user", text: input, time: now }]);
     setLoading(true);
 
     try {
-      const AZURE_API_URL = "https://housesearchingagent-g6h6b4euaxbhfudr.canadacentral-01.azurewebsites.net";
-      const response = await fetch(`${AZURE_API_URL}/chat`, {
+      const response = await fetch(`${AZURE_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: input }),
@@ -28,12 +52,12 @@ function Chatbot({ user }) {
       if (!response.ok) throw new Error("Server error");
 
       const data = await response.json();
-      setMessages((prev) => [...prev, { sender: "bot", text: data.reply }]);
+      setMessages((prev) => [...prev, { sender: "bot", text: data.reply, time: now }]);
     } catch (err) {
       console.error(err);
       setMessages((prev) => [
         ...prev,
-        { sender: "bot", text: "Error: could not reach server." },
+        { sender: "bot", text: "Error: could not reach server.", time: new Date().toISOString() },
       ]);
     }
 
@@ -41,14 +65,27 @@ function Chatbot({ user }) {
     setLoading(false);
   };
 
+  const clearMessages = async () => {
+    // Frontend clear
+    setMessages([]);
+
+    // TODO: call backend to clear DB
+    try {
+      await fetch(`${AZURE_URL}/chats`, { method: "DELETE" });
+    } catch (err) {
+      console.error("Failed to clear messages from backend:", err);
+    }
+  };
+
   return (
     <div
       style={{
-        maxWidth: 600,
-        margin: "40px auto",
+        maxWidth: "800px",
+        width: "90%",
+        margin: "0 auto",
         display: "flex",
         flexDirection: "column",
-        height: "80vh",
+        height: "100vh",
         border: "1px solid #ccc",
         borderRadius: 12,
         overflow: "hidden",
@@ -63,9 +100,26 @@ function Chatbot({ user }) {
           backgroundColor: "#f5f5f5",
           fontWeight: "bold",
           fontSize: 18,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
         }}
       >
-        Chatbot
+        <span>Chatbot</span>
+        <button
+          onClick={clearMessages}
+          style={{
+            padding: "5px 10px",
+            fontSize: 12,
+            borderRadius: 8,
+            border: "none",
+            backgroundColor: "#dc3545",
+            color: "white",
+            cursor: "pointer",
+          }}
+        >
+          Clear Chat
+        </button>
       </div>
 
       <div
@@ -91,7 +145,18 @@ function Chatbot({ user }) {
               boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
             }}
           >
-            <strong>{msg.sender === "user" ? "You" : "Bot"}:</strong> {msg.text}
+            <div>
+              <strong>{msg.sender === "user" ? "You" : "Bot"}:</strong> {msg.text}
+            </div>
+            <div
+              style={{
+                fontSize: 10,
+                color: "#555",
+                textAlign: msg.sender === "user" ? "right" : "left",
+              }}
+            >
+              {new Date(msg.time).toLocaleString()}
+            </div>
           </div>
         ))}
         {loading && (

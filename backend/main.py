@@ -9,17 +9,21 @@ from authlib.integrations.starlette_client import OAuth
 from starlette.config import Config
 from pydantic import BaseModel
 from openai import OpenAI
+from sqlalchemy.orm import Session
+from .db import Base, engine, SessionLocal
+from .models import User, Chat
 
 # -------------------------
 # Load environment variables
 # -------------------------
-# if os.path.exists(".env"):
-#     load_dotenv(".env")
+if os.path.exists(".env"):
+    load_dotenv(".env")
 
 # Create OpenAI client
 api_key = os.environ.get("OPENAI_API_KEY")
 if not api_key:
     raise RuntimeError("OPENAI_API_KEY not set")
+
 client = OpenAI(api_key=api_key)
 
 # -------------------------
@@ -32,7 +36,7 @@ app = FastAPI()
 # -------------------------
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.environ.get("SESSION_SECRET", "secret")
+    secret_key=os.environ.get("SESSION_SECRET", "secret"),
 )
 
 # -------------------------
@@ -52,9 +56,25 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="frontend/build/static"), name="static")
 
 # -------------------------
+# Startup event: create DB tables
+# -------------------------
+@app.on_event("startup")
+def on_startup():
+    Base.metadata.create_all(bind=engine)
+
+# -------------------------
+# Dependency: DB session
+# -------------------------
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# -------------------------
 # OAuth setup
 # -------------------------
-# config = Config(".env")
 config = Config(environ=os.environ)
 oauth = OAuth(config)
 oauth.register(
@@ -89,11 +109,21 @@ async def login(request: Request):
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 @app.get("/auth")
-async def auth(request: Request):
+async def auth(request: Request, db: Session = Depends(get_db)):
     token = await oauth.google.authorize_access_token(request)
     nonce = token.get("nonce")
-    user = await oauth.google.parse_id_token(token, nonce=nonce)
-    request.session["user"] = dict(user)
+    user_info = await oauth.google.parse_id_token(token, nonce=nonce)
+
+    request.session["user"] = dict(user_info)
+
+    # Save or update user in DB
+    db_user = db.query(User).filter(User.email == user_info["email"]).first()
+    if not db_user:
+        db_user = User(email=user_info["email"], name=user_info.get("name"))
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+
     return RedirectResponse("/chat")
 
 @app.get("/logout")
@@ -109,7 +139,11 @@ def get_session(request: Request):
 # Chat endpoint using ChatGPT
 # -------------------------
 @app.post("/chat")
-async def chat(req: ChatRequest, user: dict = Depends(require_user)):
+async def chat(
+    req: ChatRequest,
+    user: dict = Depends(require_user),
+    db: Session = Depends(get_db),
+):
     system_prompt = (
         "You are a helpful real estate assistant. Answer questions about properties, "
         "neighborhoods, and the home-buying process. If a user query is a property search, "
@@ -118,21 +152,45 @@ async def chat(req: ChatRequest, user: dict = Depends(require_user)):
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",  # or gpt-4o/gpt-4.1
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": req.message},
             ],
             temperature=0.7,
-            max_tokens=400
+            max_tokens=400,
         )
         reply = response.choices[0].message.content.strip()
+
+        # Find the user in DB
+        db_user = db.query(User).filter(User.email == user["email"]).first()
+
+        # Save chat to DB
+        chat_entry = Chat(user_id=db_user.id, message=req.message, reply=reply)
+        db.add(chat_entry)
+        db.commit()
+
         return JSONResponse({"reply": reply})
+
     except Exception as e:
         return JSONResponse(
             {"reply": "Sorry, something went wrong.", "error": str(e)},
-            status_code=500
+            status_code=500,
         )
+
+# -------------------------
+# Get chat history
+# -------------------------
+@app.get("/chats")
+def get_chats(user: dict = Depends(require_user), db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.email == user["email"]).first()
+    chats = (
+        db.query(Chat)
+        .filter(Chat.user_id == db_user.id)
+        .order_by(Chat.created_at.desc())
+        .all()
+    )
+    return [{"message": c.message, "reply": c.reply, "time": c.created_at} for c in chats]
 
 # -------------------------
 # Serve React SPA for all other routes
