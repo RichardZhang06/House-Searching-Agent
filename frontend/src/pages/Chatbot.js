@@ -71,9 +71,15 @@ function Chatbot({ user }) {
 
     // TODO: call backend to clear DB
     try {
-      await fetch(`${AZURE_URL}/chats`, { method: "DELETE" });
+      const response = await fetch(`${AZURE_URL}/chats`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to delete messages from server");
+      const data = await response.json();
+      console.log("Deleted messages:", data.deleted);
     } catch (err) {
-      console.error("Failed to clear messages from backend:", err);
+      console.error("Error clearing messages from backend:", err);
     }
   };
 

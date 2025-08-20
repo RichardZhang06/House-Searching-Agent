@@ -193,6 +193,20 @@ def get_chats(user: dict = Depends(require_user), db: Session = Depends(get_db))
     return [{"message": c.message, "reply": c.reply, "time": c.created_at} for c in chats]
 
 # -------------------------
+# Delete all user messages
+# -------------------------
+@app.delete("/chats")
+def delete_chats(user: dict = Depends(require_user), db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.email == user["email"]).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    deleted_count = db.query(Chat).filter(Chat.user_id == db_user.id).delete()
+    db.commit()
+
+    return {"deleted": deleted_count, "message": "All chats deleted successfully"}
+
+# -------------------------
 # Serve React SPA for all other routes
 # -------------------------
 @app.get("/{full_path:path}")
