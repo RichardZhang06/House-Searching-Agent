@@ -187,7 +187,7 @@ def get_chats(user: dict = Depends(require_user), db: Session = Depends(get_db))
     chats = (
         db.query(Chat)
         .filter(Chat.user_id == db_user.id)
-        .order_by(Chat.created_at.desc())
+        .order_by(Chat.created_at.asc())
         .all()
     )
     return [{"message": c.message, "reply": c.reply, "time": c.created_at} for c in chats]
